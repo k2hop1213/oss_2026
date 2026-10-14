@@ -171,3 +171,36 @@ ls -li                  # inode 번호
 명령 --help
 man 명령
 ```
+
+## (W02B) grep 추가 옵션
+```bash
+grep -r TODO docs/     # 재귀
+grep -l TODO *.md      # 매칭 파일 이름만
+grep -rn FIXME src/    # 파일:줄번호:내용
+grep -c ERROR *.log    # 파일별 개수 (app.log:12)
+```
+
+## (W02B) find 추가
+```bash
+find . -type f / -type d
+find . -size +1M
+find /etc -name "*.conf" 2> /dev/null
+```
+
+## (W02B) 링크 / 권한 / 실행
+```bash
+ln 대상 이름          # 하드 링크
+ln -s 대상 이름       # 심볼릭 링크
+ls -li               # inode 번호 확인
+chmod +x hello.sh    # 실행 권한
+./hello.sh           # ./ + x 권한 둘 다 필요
+```
+
+## (W02B) 압축 풀기 / 편집
+```bash
+tar -xzf 파일.tar.gz   # x 풀기, z gzip, f 파일
+nano 파일              # Ctrl+O 저장, Ctrl+X 종료
+```
+
+## (W02B) 단축키
+Tab 자동완성 · ↑↓ 히스토리 · Ctrl+R 검색 · Ctrl+C 취소 · Ctrl+L 화면 지우기 · Ctrl+A/E 줄 처음/끝

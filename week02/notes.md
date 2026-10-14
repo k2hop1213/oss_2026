@@ -365,14 +365,223 @@ cut -d: -f7 /etc/passwd | sort | uniq -c | sort -rn
 
 모를 때는 `명령 --help`, `man 명령`
 
-## Lab 2 Task (Copy, Move, Remove)
+---
 
-`data/`로 같은 과정 반복: 백업 → 백업 안에서 이름 바꾸기 → 백업 삭제
+# Week 02-B. Shell Practice Lab (실습)
+
+## Practice Set 정답 (영상 문제)
 
 ```bash
-cp -r data data_backup
-mv data_backup/fruits.txt data_backup/fruits_old.txt   # 이름 바꾸기 = mv
-ls -d data_backup                                       # 지우기 전에 확인
-rm -r data_backup
-ls data                                                 # 원본은 그대로
+cd ~/oss/w02
+ls *.c | wc -l                    # 1. C 소스 개수 → 3
+grep -c ERROR app.log             # 2. → 2
+grep ERROR app.log | wc -l        #    같은 결과 2
+grep ERROR app.log > errors.txt   # 3. 저장 → wc -l 하면 2
+grep ERROR app.log >> errors.txt  # 4. 추가 → 2가 4로 늘어남 (> 덮어쓰기, >> 추가)
+ls -lhS /var/log | head -2        # 5. 가장 큰 파일 (보통 dpkg.log)
 ```
+
+## 왜 CLI인가
+- 임베디드 보드, 서버, 컨테이너, CI에는 데스크톱이 없음 → ssh 셸이 전부
+- 클릭은 기록이 안 남지만 명령은 복사·재실행·공유·스크립트화 가능
+- 암기가 목표가 아님: `--help`, Tab 자동완성, history 활용
+
+## grep 옵션
+
+| 옵션 | 효과 |
+|---|---|
+| (없음) | 매칭 줄 출력 |
+| `-c` | 매칭 줄 개수 |
+| `-i` | 대소문자 무시 |
+| `-n` | 줄 번호 붙이기 |
+| `-v` | 패턴 **없는** 줄만 |
+| `-r` | 디렉토리 재귀 검색 |
+| `-l` | 매칭된 **파일 이름만** |
+
+조합 가능: `grep -rn FIXME src/` → 파일:줄번호:내용
+
+## find
+grep은 파일 **내용**, find는 파일 **자체**를 찾음
+
+```bash
+find . -name "*.c"        # 하위 전체의 .c
+find . -type d            # 디렉토리만
+find . -type f            # 일반 파일만
+find . -size +1M          # 1MB 초과
+find /etc -name "*.conf" 2> /dev/null   # 에러 버리기
+find . -name "*.c" | wc -l
+```
+- `ls *.c`는 한 디렉토리만, `find`는 트리 전체
+- 패턴에 따옴표 → 셸이 아니라 find가 패턴을 받게 함
+
+## sort / uniq
+```bash
+sort scores.txt       # 텍스트 순: "100"이 "21"보다 앞
+sort -n scores.txt    # 숫자 순
+sort fruits.txt | uniq -c | sort -rn   # 빈도 순위 관용구
+```
+- uniq는 **인접한** 중복만 합침 → 반드시 sort 먼저
+
+## 하드 링크 vs 심볼릭 링크
+
+| 하드 링크 `ln 대상 이름` | 심볼릭 링크 `ln -s 대상 이름` |
+|---|---|
+| 같은 데이터의 두 번째 이름 | 경로를 저장하는 작은 파일 |
+| 둘 다 동등, 원본 구분 없음 | `ls -l`에 `이름 -> 대상` |
+| 모든 이름을 지워야 데이터 삭제 | 대상 삭제 시 깨짐 |
+| 같은 파일시스템, 파일만 | 파일시스템 넘나듦, 디렉토리 가능 |
+
+## 셸 단축키
+
+| 키 | 효과 |
+|---|---|
+| Tab | 자동완성 (두 번 → 후보 목록) |
+| ↑ / ↓ | 이전 명령 불러오기 |
+| Ctrl+R | 히스토리 검색 |
+| Ctrl+C | 현재 줄/실행 중 명령 취소 |
+| Ctrl+L | 화면 지우기 (= clear) |
+| Ctrl+A / Ctrl+E | 줄 처음 / 끝으로 |
+
+## 숨김 파일과 .bashrc
+- `.`으로 시작하는 이름은 `ls`에 안 보임 → `ls -a`
+- `~/.bashrc`: 셸이 시작할 때마다 실행하는 명령 목록 (`export LANG=C.UTF-8`, `alias ll='ls -l'`)
+
+## 권한 읽기
+```
+-rw-r--r--  →  - | rw- | r-- | r--
+            타입  소유자  그룹  기타
+```
+- 파일의 x = 실행 가능, 디렉토리의 x = cd로 진입 가능
+- `chmod +x file`로 실행 권한 부여
+
+## PATH와 ./
+- 명령 이름은 PATH 디렉토리에서만 순서대로 찾음
+- 현재 디렉토리는 PATH에 없음 → `./`가 필요
+- 내 파일을 명령처럼 실행하려면 **`./` + x 권한** 두 가지가 필요
+
+## 실습 준비
+```bash
+curl -O <setup_w02.sh URL>
+bash setup_w02.sh
+tar -xzf oss-w02.tar.gz     # -x 풀기, -z gzip, -f 이 파일
+cd oss-w02                  # README.txt data docs logs src tests
+```
+
+## Lab 1. 탐색과 와일드카드
+```bash
+find . -type d                  # 트리 구조 먼저 파악
+ls src/*.c                      # 3개 (한 단계만)
+find . -name "*.c" | wc -l      # 7개 (전체 트리)
+cat src/old/legacy.c            # Checkpoint 1: FIXME 줄
+```
+- 차이 4개 = src/old의 옛 소스 2개 + tests/의 테스트 2개
+
+## Lab 2. 복사, 이동, 삭제
+```bash
+cp -r logs logs_backup                               # 디렉토리 복사는 -r
+mv logs_backup/old.log logs_backup/archive.log       # 이름 변경 = 이동
+touch tmp1.txt tmp2.txt draft.txt
+ls tmp*.txt          # 같은 패턴으로 먼저 확인 (안전 습관)
+rm tmp*.txt
+rm -r logs_backup draft.txt                          # 디렉토리는 -r
+```
+Task: data/로 같은 과정 반복
+```bash
+cp -r data data_backup
+mv data_backup/fruits.txt data_backup/fruits_old.txt
+ls -d data_backup
+rm -r data_backup
+```
+
+## Lab 3. grep과 리다이렉션
+```bash
+cd ~/oss-w02/logs
+head -3 app.log                 # 측정 전에 데이터부터 보기
+grep -c ERROR app.log           # 12
+grep -c ERROR app.log > count.txt
+cat count.txt                   # Checkpoint 2: 12
+grep ERROR app.log > errors.txt; wc -l errors.txt    # Task A: 12
+grep -in error app.log | grep -v ERROR               # Task B: 12 vs 14의 차이 2줄
+```
+- `grep -ci error`가 14인 이유: "0 error rows", "no error detected"처럼 **문제없다는 INFO 줄**에도 error라는 글자가 있음
+- grep은 의미가 아니라 **글자**를 매칭함
+
+## Lab 4. 파이프
+```bash
+grep ERROR app.log | wc -l      # 12, 중간 파일 없이
+grep ERROR app.log | cut -d" " -f4 | sort | uniq -c | sort -rn
+#   5 db / 3 net / 2 auth / 1 ui / 1 sys   ← Checkpoint 3
+grep -c ERROR *.log             # 여러 파일 → 파일명:개수
+# app.log:12
+# old.log:3
+```
+- sort 없이 `uniq -c` → 인접한 것만 합쳐져서 개수가 쪼개짐
+
+## Lab 5. find와 sort
+```bash
+grep -rn FIXME src                       # 알려진 문제 위치
+find . -size +1M                         # ./data/big.bin
+find . -name "*.md"                      # A: 3개
+sort -n data/scores.txt | tail -3        # B: 87 kim / 100 choi / 100 lim
+sort data/fruits.txt | uniq -c | sort -rn            # C: apple 5
+cut -d" " -f4 logs/app.log | sort | uniq -c | sort -rn   # D: db 51 (200줄 전체라 grep 없이 cut부터)
+```
+
+## Lab 6. 링크 실습
+```bash
+echo "the original line" > original.txt
+ln original.txt hard.txt
+ls -li original.txt hard.txt    # 같은 inode 번호, 링크 수 2
+ln -s original.txt soft.txt
+ls -l soft.txt                  # soft.txt -> original.txt
+rm original.txt
+cat hard.txt                    # 데이터 살아있음
+cat soft.txt                    # No such file or directory
+```
+
+## Lab 7. 파일을 명령으로 실행
+```bash
+echo "echo hello from my first command" > hello.sh
+bash hello.sh       # OK (bash가 파일을 읽음)
+./hello.sh          # Permission denied (x 권한 없음)
+chmod +x hello.sh
+./hello.sh          # OK → Checkpoint 4
+hello.sh            # command not found (PATH에 . 없음)
+```
+
+## Lab 8. nano로 편집
+- `nano hello.sh` → 저장 `Ctrl+O` + Enter, 종료 `Ctrl+X`
+- 하단의 `^O`에서 `^`는 Ctrl
+
+## Extra 문제 정답
+
+| # | 답 | 명령 |
+|---|---|---|
+| 1 | 5 | `grep -c WARN logs/old.log` |
+| 2 | 15 | `cat logs/*.log \| grep -c ERROR` 또는 `grep ERROR logs/*.log \| wc -l` |
+| 3 | 4 | `grep -r TODO docs \| wc -l` |
+| 4 | ERROR 12줄 | `grep -v INFO logs/app.log \| grep -v WARN` |
+| 5 | 5개 | `find . -name "*.txt"` |
+| 6 | 100 choi, 100 lim, 21 shin… | 텍스트 정렬이라 "100"이 "21" 앞 |
+
+※ 2번: `grep -c ERROR logs/*.log`는 파일별로 따로 나와서(12, 3) 합계가 아님
+
+## Challenge 정답
+```bash
+cut -d" " -f2 logs/app.log | cut -d: -f1 | sort | uniq -c   # 1. 시간대별: 176 09 / 24 10
+grep ERROR logs/app.log | grep " db " > db_errors.txt        # 2. → 5줄
+cat logs/*.log | cut -d" " -f3 | sort | uniq -c | sort -rn   # 3. 179 INFO / 36 WARN / 15 ERROR
+wc -l src/*.c src/old/*.c tests/*.c | sort -n | tail -2      # 4. 최대: src/parser.c 17줄
+echo "restored" > original.txt; cat soft.txt                 # 5. restored
+```
+- 5번: 심볼릭 링크는 **경로만** 저장 → 같은 경로를 다시 만들면 다시 연결됨
+
+## 파이프라인 = 프로그램
+
+| 단계 | 역할 |
+|---|---|
+| `grep ERROR` | 관련 레코드 선택 |
+| `cut -d" " -f4` | 필드 하나 추출 |
+| `sort` | 같은 값끼리 모으기 |
+| `uniq -c` | 그룹별 개수 |
+| `sort -rn` | 순위 매기기 |
