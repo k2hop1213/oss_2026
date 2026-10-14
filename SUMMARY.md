@@ -267,7 +267,7 @@ gcc build/main.o build/logutil.o -o build/logcount
 |---|---|
 | `expected ';'` | 컴파일 |
 | `undefined reference` | **링크** (정의 든 .o 빠짐) |
-| `multiple definition` | 링크 (정의 중복) |
+| (수업 외) `multiple definition` | 링크 (정의 중복) — 슬라이드엔 없음 |
 | 개수가 2가 아니라 3 | 프로그램 동작 (로직) |
 
 - `strstr`(어디든 포함) vs `strncmp`(접두사) → `INFO no ERROR detected` 때문에 3. **컴파일은 문법만 봐서** 성공
