@@ -128,3 +128,27 @@ echo "에러" >&2           # 표준에러로 보냄
 bash -n file.sh     # 문법 검사만 (실행 안 함)
 bash -x file.sh     # 실행 과정 추적 출력
 ```
+
+---
+
+## 입력 / 환경
+
+```bash
+read -r name            # 표준입력 한 줄 → name
+export VAR              # 자식 프로세스에 전달
+export VAR=값
+```
+
+## 조건에 명령 쓰기
+
+```bash
+if grep -q PATTERN file; then ...; fi
+if cmd > tmp; then mv tmp out; else rm -f tmp; fi
+cmd1 && cmd2 || cmd3
+```
+
+## grep 상태
+
+```
+0 찾음    1 못 찾음 (정상)    2 에러
+```

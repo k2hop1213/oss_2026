@@ -187,3 +187,37 @@ for (size_t i = 0; i < count; i += 3) {
 올림:   src/ include/ Makefile tests/ README.md .gitignore vendor/ assets/
 안 올림: build/*.o  lib/libfilters.a  bin/image-lab  bin/test_filters  output/*.png
 ```
+
+---
+
+## GDB 추가
+
+```
+gdb -q -tui ./prog                 # 소스 화면 + 명령창
+(gdb) layout src                   # TUI 켜기, 화면 깨지면 Ctrl+L
+break 파일.c:줄번호
+display 식                         # 멈출 때마다 자동 출력
+print /u 변수                      # unsigned 숫자로
+list 함수                          # 소스 보기 (디버그 정보 확인용)
+info breakpoints
+set debuginfod enabled off         # 다운로드 끄기
+```
+
+```bash
+echo "set debuginfod enabled off" >> ~/.gdbinit
+gdb -q -batch -ex "break f" -ex run -ex "print x" ./prog   # 명령을 한 번에
+```
+
+| GDB | VS Code |
+|---|---|
+| `next` | F10 |
+| `step` | F11 |
+| `finish` | Shift+F11 |
+| `continue` | F5 |
+| `print` / `display` | Variables / Watch |
+
+## 이미지 영역 index
+
+```c
+size_t index = ((size_t)y * width + x) * 3;
+```

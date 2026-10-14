@@ -453,3 +453,198 @@ $ git commit -m "Update answer"
 - Software Carpentry: swcarpentry.github.io/git-novice/ , shell-novice
 - Filesystem Hierarchy Standard 3.0: refspecs.linuxfoundation.org/FHS_3.0
 - Git command reference: git-scm.com/docs
+
+---
+---
+
+# Week 03-B. Git Practice (실습)
+
+## 실습 구성
+
+`setup_w03.sh`로 `oss-w03` 생성: `README.md`(잘못된 설명 한 줄), `commands.md`, `.sample`(숨김 파일), `logs/git-practice.log`(ERROR 3줄), `reports/`
+
+| 명령 | 확인 대상 |
+|---|---|
+| `git status --short` | 추적 여부와 두 영역의 변경 상태 |
+| `git diff` | 작업 파일 ↔ 스테이징 |
+| `git diff --staged` | 스테이징 ↔ 현재 커밋 |
+| `git show HEAD:파일` | 현재 커밋에 기록된 파일 내용 |
+
+## Lab 1. 두 변경을 나누어 커밋
+
+```bash
+grep -c ERROR logs/git-practice.log > reports/count.txt   # 3
+nano README.md                                             # ls / ls -a 설명 수정
+git add README.md && git commit -m "Correct hidden file explanation"
+git add reports/count.txt && git commit -m "Record ERROR count"
+git log -2 --oneline --stat
+```
+- `git add .` 금지 → 파일을 골라서 add
+- **새 파일은 add 전에 `git diff`에 안 나옴** → `git status`로 확인
+
+## Lab 2. add 후 다시 수정 (`MM`)
+
+```bash
+echo "pwd: print the working directory" >> commands.md
+git add commands.md
+echo "ls: list directory entries" >> commands.md
+git status --short     # MM commands.md
+git commit -m "Document pwd"     # pwd만 커밋됨
+git show HEAD:commands.md
+git add commands.md && git commit -m "Document ls"
+```
+- `add`는 그 순간의 내용을 **사진 찍듯 복사**. 이후 수정은 커밋에 안 들어감
+- 왼쪽 M = 커밋↔스테이징, 오른쪽 M = 스테이징↔작업 파일
+
+## Lab 3. 필요한 수정은 남기고 실수 복구
+
+```bash
+echo "Verified in Ubuntu." >> README.md
+echo "WRONG" > commands.md            # 실수로 덮어씀
+git add README.md commands.md
+git restore --staged commands.md      # 1. 스테이징만 취소 (파일은 아직 WRONG)
+git restore commands.md               # 2. 작업 파일을 스테이징 버전으로 복구
+git commit -m "Record Ubuntu verification"
+```
+- 순서가 중요: `restore`를 먼저 하면 스테이징에 이미 WRONG이 있어서 WRONG이 그대로 남음
+
+## Lab 4. 이미 추적한 파일과 ignore
+
+```bash
+echo "debug run 1" > reports/debug.log
+git add reports/debug.log && git commit -m "Record debug sample"
+printf '*.tmp\nreports/*.log\n' > .gitignore
+echo "debug run 2" >> reports/debug.log
+git status --short        #  M reports/debug.log  ← 여전히 추적됨
+git rm --cached reports/debug.log
+git add .gitignore
+git commit -m "Stop tracking generated files"
+git ls-files reports/debug.log      # 없음
+cat reports/debug.log               # 파일은 디스크에 그대로
+git show HEAD~1:reports/debug.log   # 과거 커밋에는 남아 있음
+git status --short --ignored
+```
+
+## 도전 문제
+
+```bash
+# 이력 수사
+git log --oneline -- commands.md
+git show COMMIT:commands.md
+git diff COMMIT HEAD -- commands.md
+
+# 이름 변경
+git mv commands.md command-guide.md       # 이동 + 스테이징 → R
+git commit -m "Rename"; git mv command-guide.md commands.md; git commit -m "Restore"
+
+# 삭제한 파일 복구
+rm commands.md; git status --short        #  D commands.md
+git restore commands.md                   # 커밋된 내용으로 복원 (커밋 안 한 파일은 불가)
+```
+
+## Classroom 제출
+
+```bash
+gh auth status          # 미인증이면 gh auth login --hostname github.com --git-protocol https --web
+gh auth setup-git
+cd ..                   # oss-w03 밖(부모 폴더)에서
+git clone 과제_URL git-w03-submit      # oss-w03 안에 넣지 말 것
+cd git-w03-submit
+# 수정 → add → commit
+git push
+```
+- **clean 상태 ≠ 제출 완료**: 커밋만 하고 push 안 하면 GitHub에는 없음
+
+---
+
+# 추가 정리: 복습하며 나온 질문들
+
+## status 코드 전체
+
+| 코드 | 뜻 |
+|---|---|
+| `??` | 추적 안 됨 |
+| `A ` | 마지막 커밋에 **없던** 파일을 add (Added) |
+| `M ` | 마지막 커밋에 **있던** 파일을 수정하고 add |
+| ` M` | 수정했지만 add 안 함 |
+| `MM` / `AM` | add 후 또 수정 |
+| `D ` / ` D` | 삭제 스테이징됨 / 삭제했지만 반영 안 함 |
+| `R ` | 이름 바뀜 (`git mv`) |
+| `UU` | merge 충돌 미해결 |
+
+- 기준은 "처음 add인가"가 아니라 **마지막 커밋에 그 파일이 있었나**
+- `rm --cached` 후 커밋 **전**에 다시 add → `M` / 커밋 **후** 다시 add → `A`
+- 추적 안 하는 파일(`??`)은 수정해도 계속 `??`
+
+## `A` 없애기
+
+| 원하는 것 | 명령 | 결과 |
+|---|---|---|
+| 커밋에 넣기 | `git commit` | 사라짐 |
+| add만 취소 | `git restore --staged 파일` (커밋 없는 저장소면 `git rm --cached`) | `??` |
+| 파일까지 삭제 | 위 + `rm 파일` | 복구 불가 (커밋한 적 없으니까) |
+
+## `git rm` vs `git rm --cached` vs `git restore --staged`
+
+| 명령 | 디스크 파일 | 다음 커밋 |
+|---|---|---|
+| `git rm 파일` | **지워짐** | 저장소에서 삭제 |
+| `git rm --cached 파일` | **남음** | 저장소에서 삭제 (추적 중단) |
+| `git restore --staged 파일` | 남음 | add한 **변경만 취소**, 계속 추적 |
+
+- `--cached` 없이 실수로 지웠으면: `git restore --staged 파일` → `git restore 파일`
+- `rm --cached` 직후 status: `D  파일` + `?? 파일` → 커밋해야 `??`만 남음
+
+## `.gitignore` vs `git rm --cached`
+
+| | `git rm --cached` | `.gitignore` |
+|---|---|---|
+| 종류 | 명령 (한 번) | 규칙 파일 (계속) |
+| 대상 | **이미 추적 중** | **추적 안 하는** 파일 |
+| 이미 추적 중인 파일에 효과 | 있음 | **없음** (커밋해도 없음) |
+| 적용 시점 | 커밋해야 반영 | 저장하는 순간 바로 |
+
+- 실수로 커밋한 파일 빼기 = `git rm --cached` + `.gitignore` + 커밋
+- `.gitignore` 커밋은 규칙을 저장소에 기록해 공유하려는 것
+
+## clone / push / fetch / pull
+
+장소는 3군데: **원격(GitHub)** / **로컬 저장소(.git, origin/main)** / **작업 파일**
+
+| 명령 | 원격 | 로컬 저장소 | 작업 파일 |
+|---|---|---|---|
+| `clone` | 그대로 | 새로 생김 | 새로 생김 (체크아웃) |
+| `push` | **바뀜** | 그대로 | 그대로 |
+| `fetch` | 그대로 | `origin/main`만 갱신 | **그대로** |
+| `pull` | 그대로 | 바뀜 | **바뀔 수 있음** |
+
+- `pull` = `fetch` + `merge origin/main`
+- fetch 후 통합: `git log --oneline main..origin/main` → `git merge origin/main`
+- push가 거절되면 먼저 pull(또는 fetch + merge)
+
+## Fast-forward
+
+- 내 브랜치에 새 커밋이 없어서 원격이 **연장선**일 때 → merge 커밋 없이 **위치만 앞으로**
+- 갈라졌으면(둘 다 새 커밋) → merge 커밋(부모 2개) 필요
+- `--ff-only`: fast-forward 가능할 때만, 아니면 거부
+
+## Merge가 합치는 방식
+
+- **공통 조상** 기준으로 양쪽 변경 비교
+- 다른 파일 / 같은 파일 다른 줄 → 자동으로 둘 다 반영
+- **같은 줄을 다르게** → 충돌
+
+```
+<<<<<<< HEAD
+내 브랜치 내용
+=======
+합치려는 브랜치 내용
+>>>>>>> 브랜치
+```
+해결: 파일 수정(표시 3줄 삭제) → `git add` → `git commit` / 취소: `git merge --abort`
+
+## pull 했는데 충돌
+
+- 갈라진 상태에서 그냥 `git pull` → `fatal: Need to specify how to reconcile divergent branches.`
+  → `git pull --no-rebase` (merge 방식) 또는 `git config pull.rebase false`
+- 충돌 시 merge와 똑같이 해결하거나 `git merge --abort`

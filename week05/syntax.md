@@ -85,3 +85,29 @@ gcc -Iinclude -c src/filters.c -o build/filters.o
 ar rcs lib/libfilters.a build/filters.o
 gcc -o bin/image-lab build/main.o build/image_io.o lib/libfilters.a -lm
 ```
+
+---
+
+## 공유 라이브러리
+
+```bash
+gcc -fPIC -I. -c util.c -o util_pic.o        # 위치 독립 코드
+gcc -shared util_pic.o -o libutil.so
+gcc main.o -L. -lutil -o app
+LD_LIBRARY_PATH="$PWD" ./app                  # 실행 시 찾는 경로
+```
+
+## 오브젝트 / 실행파일 들여다보기
+
+```bash
+nm 파일.o            # T / U
+objdump -d 파일.o    # 기계어와 어셈블리 같이 보기
+file 파일.o          # ELF ... relocatable
+ar t lib이름.a       # 아카이브 안의 .o 목록
+```
+
+## 링크 순서
+
+```bash
+gcc main.o lib이름.a -lm -o app     # 쓰는 쪽 먼저, 라이브러리는 뒤
+```

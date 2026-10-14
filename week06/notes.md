@@ -276,3 +276,130 @@ return pixels;
 ## Week 06-A 핵심 요약
 
 > Make는 Makefile에 적힌 **타깃: 전제조건 + (Tab) 레시피** 규칙을 보고, 전제조건이 타깃보다 **최신일 때만** 레시피를 다시 실행해 5주차의 수동 컴파일/링크를 자동화한다. `$@`(타깃), `$<`(첫 전제조건), `$^`(전부)로 규칙을 줄이고, 헤더도 전제조건에 적어야 오래된 `.o`가 남지 않는다. Make는 파일 시각만 보므로 옵션을 바꾸면 `make clean`이 필요하다. 빌드가 성공해도 `unsigned char` 오버플로(250+40→34) 같은 논리 버그는 남을 수 있으며, `-g -O0`으로 빌드한 뒤 GDB의 `break` → `run` → `print` → `finish`로 값을 직접 확인하고, clamp로 고친 뒤 `make check`로 검증한다.
+
+---
+---
+
+# Week 06-B. Build & Debug Practice (실습: region)
+
+## 과제
+
+`brighten_region`: 이미지에서 **지정한 사각형만** 밝게 하고, 처리한 픽셀 수를 리턴
+
+```bash
+make region region-check          # 12 PASS
+./bin/region-lab assets/sample.jpg output/region.png 400 200 400 250 80
+#                                                   x   y   w   h   gain
+# Processed 100000 pixels  (400 × 250)
+```
+
+```c
+typedef struct { int x, y, width, height; } Region;
+int region_valid(int width, int height, Region r);
+size_t brighten_region(unsigned char *rgb, int width, int height, Region r, int gain);
+```
+- 유효하지 않은 입력: 0 리턴, 버퍼 그대로
+
+## 좌표 → 배열 index
+
+```
+4×3 이미지의 첫 채널 index
+          x=0   x=1   x=2   x=3
+y=0        0     3     6     9
+y=1       12    15    18    21
+y=2       24    27    30    33
+
+index = ((size_t)y * width + x) * 3
+```
+- 한 줄에 `width`개 픽셀, 픽셀마다 3칸 → 한 줄 = `width * 3`칸 (stride)
+
+## 입력 검사 (`region_valid`)
+
+```c
+width > 0 && height > 0 && r.x >= 0 && r.y >= 0
+&& r.x < width && r.y < height && r.width > 0 && r.height > 0
+&& r.width <= width - r.x && r.height <= height - r.y
+```
+- 크기 0, 음수 좌표, 이미지 밖으로 넘치는 사각형은 거부
+- 오른쪽/아래 끝에 닿는 유효한 예 (4×3): `{2, 1, 2, 2}`
+
+## 정답 구현
+
+```c
+size_t pixels = 0;
+for (int y = r.y; y < r.y + r.height; ++y) {
+    for (int x = r.x; x < r.x + r.width; ++x) {
+        size_t index = ((size_t)y * width + x) * 3;
+        for (int c = 0; c < 3; ++c)
+            rgb[index + c] = brighten_channel(rgb[index + c], gain);
+        ++pixels;                      // 안쪽 반복문 안!
+    }
+}
+return pixels;
+```
+
+## 버그 두 가지와 테스트 패턴
+
+| 버그 | count | 위치 | 정사각형 | 실패 테스트 |
+|---|---|---|---|---|
+| `++pixels`가 바깥 반복문 | ❌ (줄 수를 셈) | ✅ | 실패 | landscape, square, entire |
+| `y * height` (stride) | ✅ | ❌ | **통과** | landscape, portrait, last pixel, entire, clamp value |
+
+- stride 버그는 `width == height`면 티가 안 나서 **정사각형만 통과**
+
+## GDB로 stride 버그 잡기 (직접 관찰한 값)
+
+디버그 입력: 4×3 이미지, 값 전부 10, 영역 `{1,1,2,1}`, gain 40
+
+```
+(gdb) break brighten_region      (또는 break region.c:17)
+(gdb) run
+(gdb) display width              → 4
+(gdb) display height             → 3
+(gdb) display r                  → {x = 1, y = 1, width = 2, height = 1}
+(gdb) next                       ← index 줄까지
+(gdb) print x / print y          → 1 / 1
+(gdb) next
+(gdb) print index                → 12
+(gdb) print ((size_t)y * width + x) * 3   → 15
+(gdb) step                       ← 19번 줄에서: brighten_channel 안으로
+(gdb) finish                     → Value returned is 50 '2'
+(gdb) next
+(gdb) print /u rgb[12]           → 50   (영역 밖인데 바뀜)
+(gdb) print /u rgb[15]           → 10   (영역 안인데 그대로)
+(gdb) quit
+```
+- 밝기 계산(50)은 정상, **넣는 칸**이 한 칸 왼쪽(12)으로 틀림
+- `'2'`는 50을 문자(ASCII)로도 보여준 것 → `print /u`로 숫자만
+
+수정 후 `make region-check` → 12 PASS (회귀 확인)
+
+## 실습 중 겪은 문제와 해결
+
+| 증상 | 원인 | 해결 |
+|---|---|---|
+| `run` 후 다운로드에 멈춤, `Ctrl+C` 안 먹힘 | debuginfod가 시스템 라이브러리 디버그 정보를 내려받음 | 질문에 `n` / `~/.gdbinit`에 `set debuginfod enabled off` / 멈추면 다른 터미널에서 `pkill -9 gdb` 후 `reset` |
+| `Start it from the beginning? (y or n)` | 이전 실행이 남아 있음 | `y` |
+| `step`인데 함수 안으로 안 들어감 | ① 함수 호출이 없는 줄 ② 그 함수가 `-g` 없이 컴파일됨 | `list 함수`로 확인. 수동으로 `-g` 없이 만든 `filters.o`를 Make가 최신으로 판단해 재사용함 → `rm build/filters.o lib/libfilters.a` 후 `make` |
+| `cannot find build/main.o` | 수동 빌드에서 `main.c`, `image_io.c`를 `-c` 안 함 | 모든 `.c`를 `-c` 후 링크, 또는 `make` |
+
+**교훈:** Make는 파일 시각만 보고 **옵션(-g) 차이는 모른다** → 옵션이 바뀌면 `make clean`
+
+## 디버깅 증거 정리 (슬라이드 29)
+
+1. 증상: 정사각형만 PASS, count는 맞고 value/exterior 실패
+2. 재현 입력: 4×3, `{1,1,2,1}`, gain 40
+3. 멈춘 줄: `region.c` index 계산 줄
+4. 관찰: `index = 12`, 기대 `15` / `rgb[12] = 50`, `rgb[15] = 10`
+5. 원인: stride에 `width` 대신 `height`
+6. 수정 → `make region-check` 12 PASS
+
+---
+
+# 추가 정리: `.PHONY`가 필요한 이유 (직접 확인)
+
+```bash
+touch clean            # 우연히 clean이라는 파일이 있으면
+make clean             # .PHONY 없으면: make: 'clean' is up to date.  (아무것도 안 지움)
+```
+`.PHONY: clean`이 있으면 같은 이름 파일이 있어도 항상 실행. 진짜 파일 타깃(`build/main.o`)은 넣으면 안 됨

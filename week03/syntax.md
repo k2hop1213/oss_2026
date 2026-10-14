@@ -67,3 +67,60 @@ reports/
 ```
 git rm --cached 파일
 ```
+
+---
+
+## 확인 / 조회
+
+```bash
+git show HEAD:파일               # 현재 커밋의 파일 내용
+git show HEAD~1:파일             # 하나 전 커밋
+git show --stat HEAD            # 커밋에 들어간 파일
+git log -2 --oneline --stat
+git log --oneline -- 파일        # 그 파일이 바뀐 커밋만
+git diff 커밋 HEAD -- 파일
+git ls-files                    # 추적 중인 파일 목록
+git status --short --ignored    # 무시된 파일도 표시 (!!)
+```
+
+## 추적 / 삭제 / 이름
+
+```bash
+git rm 파일                 # 디스크에서도 삭제 + 삭제 스테이징
+git rm --cached 파일        # 디스크엔 남기고 추적만 중단
+git mv 원래 새이름          # 이름 변경 + 스테이징
+git restore --staged 파일   # add 취소
+git restore 파일            # 작업 파일을 스테이징 버전으로
+```
+
+## 원격과 동기화
+
+```bash
+git clone URL [폴더]
+git fetch
+git log --oneline main..origin/main   # 받아온 새 커밋
+git merge origin/main
+git merge --ff-only origin/main
+git pull                      # fetch + merge
+git pull --ff-only
+git pull --no-rebase          # 갈라졌을 때 merge 방식으로
+git push
+```
+
+## 충돌
+
+```bash
+git status --short     # UU 파일
+# 파일에서 <<<<<<< ======= >>>>>>> 정리
+git add 파일
+git commit
+git merge --abort      # 취소
+```
+
+## GitHub 인증 (gh)
+
+```bash
+gh auth status
+gh auth login --hostname github.com --git-protocol https --web
+gh auth setup-git
+```

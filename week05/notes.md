@@ -402,3 +402,100 @@ git status --short
 ## Week 05-A 핵심 요약
 
 > gcc 빌드는 **전처리(-E) → 컴파일(-S) → 어셈블(-c) → 링크**의 4단계를 거치며, 각 단계는 이전 표현을 소비하고 멈추는 옵션이 산출물을 결정한다. 헤더는 **선언**만 담고 `.c` 파일이 **정의**를 담으며, 함수 호출은 선언과 링크된 구현체가 모두 필요하다 — 구현체가 없으면 링크 단계에서 "undefined reference" 오류가 난다. **소스 편집은 기존 오브젝트/실행파일을 자동으로 갱신하지 않으므로** 재컴파일→재링크가 필요하다. 정적 라이브러리(`.a`)는 코드를 실행파일에 통째로 넣어 런타임에 별도 파일이 필요 없지만, 공유 라이브러리(`.so`)는 런타임에 `LD_LIBRARY_PATH` 등으로 찾아야 하는 의존성을 남긴다. 빌드가 성공했다고 프로그램이 옳다는 뜻은 아니며(예: `strstr` vs `strncmp` 둘 다 컴파일되지만 의미가 다름), 차이를 드러내는 입력으로 검증해야 한다.
+
+---
+---
+
+# Week 05-B. C Build Practice (실습)
+
+입력 `data/app.log` (정답 2: `ERROR `로 **시작하는** 줄만)
+```
+INFO boot
+ERROR disk
+INFO no ERROR detected
+WARN memory
+ERROR network
+```
+
+## Exercise 목록
+
+| Ex | 내용 | 핵심 |
+|---|---|---|
+| 1 | 분리 컴파일 `-c`로 `main.o`, `logutil.o` → 링크 → `check.sh` 7 passed | |
+| 2 | `gcc build/main.o -o build/missing` | **링크** 단계 `undefined reference to 'is_error'`. 헤더는 선언만 |
+| 3 | `variants/logutil_syntax.c` 컴파일 | **컴파일** 에러, `파일:줄:칸` 읽고 직전 문장 확인 |
+| 4 | `logutil.c`를 contains 버전으로 교체 | 실행(A) 2 → `.o`만 재컴파일(B) 2 → **재링크(C) 3** |
+| 5 | 동작 오류 찾기 | `INFO no ERROR detected`가 contains와 starts-with를 구분. 컴파일러는 요구사항을 모름 |
+| 6 | 정적 라이브러리 | `ar rcs`, `ar t`, `main.o liblogutil.a` 순서 |
+| 7 | 헤더 `ERROR_PREFIX`를 `"WARN "`으로 | `main.o`, `logutil.o` **둘 다** 재컴파일 → 1. `main.o`만 하면 여전히 2 |
+| 도전 | `logutil_debug.c` | 디버그 메시지를 stdout에 → 출력 계약 깨짐. `fprintf(stderr, ...)` |
+
+## 확장: 공유 라이브러리
+
+```bash
+gcc -fPIC -I. -c logutil.c -o build/logutil_pic.o
+gcc -shared build/logutil_pic.o -o build/liblogutil.so
+gcc build/main.o -Lbuild -llogutil -o build/logcount_shared
+./build/logcount_shared data/app.log
+# error while loading shared libraries: liblogutil.so: cannot open shared object file
+LD_LIBRARY_PATH="$PWD/build" ./build/logcount_shared data/app.log    # 2
+```
+- `-L`: **링크할 때** 찾는 곳 / `LD_LIBRARY_PATH`: **실행할 때** 찾는 곳
+
+## Individual Check
+
+1. 헤더만으로 링크가 안 되는 이유 → 선언만 있고 정의(T)가 없음
+2. 소스 변경 후 → 재컴파일 + 재링크
+3. contains 버그를 드러내는 입력 → 중간에 `ERROR `가 있는 줄
+4. 버전 관리 → 소스, 헤더, check.sh, README, .gitignore / `build/` 제외
+
+---
+
+# 추가 정리: 복습하며 나온 질문들
+
+## 컴파일의 두 가지 뜻
+
+- 넓은 뜻: C 코드를 실행파일로 만드는 것 전체
+- 좁은 뜻(2단계): C → 어셈블리, **문법과 타입 검사**. 동작이 맞는지는 모름
+- `-c`는 "컴파일만"이라고 하지만 실제로는 1~3단계(전처리+컴파일+어셈블), 링크만 안 함
+
+## 어셈블 (3단계)
+
+- 어셈블리어(텍스트, `leal 1(%rdi), %eax`) → 기계어(숫자, `8d 47 01`) → `.o`
+- 명령과 숫자가 거의 1:1이라 단순. 에러는 거의 컴파일 단계에서 남
+- `.o`는 `relocatable`: 다른 파일 함수(U)가 아직 연결 안 돼서 단독 실행 불가 → 링크 필요
+
+```
+main.c ─전처리→ .i ─컴파일→ .s ─어셈블→ .o ─링크→ 실행파일
+```
+
+## 분리 컴파일을 하는 이유
+
+1. **바뀐 파일만** 재컴파일 (컴파일은 느리고 링크는 빠름)
+2. 파일 단위로 나눠 작업
+3. `.o`를 라이브러리로 묶어 재사용
+
+대신 영향받는 `.o`를 빠짐없이 다시 만들고 재링크해야 함 → 6주차 Make가 자동화
+
+## 링크 순서: 호출자가 아카이브보다 앞
+
+```bash
+gcc main.o liblogutil.a -o app     ✅
+gcc liblogutil.a main.o -o app     ❌ undefined reference
+```
+- 링커는 왼쪽부터 한 번만 읽고, `.a`에서는 **그 시점에 필요한 것만** 꺼냄
+- `.o`는 통째로 들어가서 순서 무관. 순서가 문제 되는 건 `.a`, `-l`
+- `-lm`이 항상 맨 끝인 이유
+
+## `-O0`
+
+- 최적화 레벨 0 = 최적화 끔. 소스와 기계어가 1:1
+- 최적화하면 GDB에서 `<optimized out>`, 줄 건너뛰기 → 디버깅용으로 `-g -O0`
+- 대문자 `-O`(최적화) vs 소문자 `-o`(출력 파일)
+
+## 수동 빌드에서 자주 하는 실수
+
+```
+cannot find build/main.o: No such file or directory
+```
+→ 링크에 넣을 `.o`를 안 만듦. 모든 `.c`를 `-c`로 만든 뒤 링크 (Make가 이걸 대신 챙겨줌)

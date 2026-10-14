@@ -512,3 +512,83 @@ git status --short
 - William Shotts: Writing Shell Scripts
 - GNU Bash Reference Manual: gnu.org/software/bash/manual/
 - GNU Grep Manual: gnu.org/software/grep/manual/
+
+---
+
+# 추가 정리: 복습하며 나온 질문들
+
+## `$0`
+
+- 스크립트를 실행할 때 **적은 이름 그대로**: `bash count.sh` → `count.sh`, `./count.sh` → `./count.sh`
+- `$#`, `"$@"`에는 포함 안 됨. 사용법 메시지에 씀: `echo "Usage: $0 FILE" >&2`
+
+## `export`: 부모 → 자식은 복사, 자식 → 부모는 안 됨
+
+```bash
+COURSE=OSS
+bash -c 'echo "[$COURSE]"'          # []     (export 안 하면 자식은 모름)
+export COURSE
+bash -c 'echo "[$COURSE]"'          # [OSS]
+bash -c 'COURSE=X'; echo "$COURSE"  # OSS    (자식의 변경은 부모에 안 돌아옴)
+```
+- 스크립트 안의 `cd`나 변수 변경이 내 터미널에 반영 안 되는 이유와 같음
+
+## `read -r`
+
+- 실행 **도중에** 표준입력에서 한 줄을 꺼내 변수에 저장 (인자는 시작할 때)
+- 키보드뿐 아니라 파이프(`echo kim | bash s.sh`), `<`로도 입력 가능
+- `-r`: 백슬래시를 글자 그대로
+- 변수에 원래 값이 있어도 **덮어씀**. Enter만 치면 빈 값, 입력이 없으면(EOF) 빈 값 + 상태 1
+
+## grep 상태 정리
+
+| 상황 | `grep -c` 출력 | `$?` |
+|---|---|---|
+| 찾음 | 개수 | 0 |
+| 못 찾음 | `0` | **1** (에러 아님!) |
+| 파일 없음 등 | (없음) | 2 |
+
+- `grep -q`: 출력 없이 상태만 → `if grep -q ERROR f; then`
+- 강의자료에서 `-q`는 `grep -q`만 나옴 (W04A 24, 25, 28쪽)
+
+## `if`는 명령의 종료 상태를 본다
+
+```bash
+if [ -f a.txt ]; then ...            # [ 도 test라는 명령
+if grep -q ERROR a.log; then ...
+if bash summarize.sh ... > tmp; then mv tmp summary.txt; fi   # 스크립트의 exit 0/1
+```
+
+## `;` / `&&` / `||`
+
+| 연산자 | 뒤 명령 실행 조건 |
+|---|---|
+| `;` | 항상 |
+| `&&` | 앞이 성공(0) |
+| `\|\|` | 앞이 실패(≠0) |
+
+```bash
+gcc main.c -o app && ./app        # 컴파일 성공해야 실행
+mkdir -p reports || exit 1
+grep -q ERROR f && echo found || echo none
+```
+- `A && B || C`는 B가 실패해도 C가 실행됨 → 진짜 if-else가 아님
+
+## `bash -x` 읽기
+
+```
++ '[' 1 -ne 1 ']'          ← 실행된 명령, 변수는 실제 값으로 바뀐 상태
+++ grep -c ERROR file      ← $( ) 안의 명령
++ count=3
+3                          ← + 없는 줄은 원래 출력
+```
+- 실행된 만큼만 나옴. 인자 없이 실행하면 첫 검사에서 `exit` → 몇 줄만 나옴
+- 마지막 `+` 줄 = 멈춘 곳. 추적 출력은 stderr
+
+## 직접 써본 스크립트 피드백
+
+- 에러 메시지는 항상 `>&2`, 메시지에 `$1`(어떤 파일인지)
+- 셔뱅 오타 `#!usr/bin/env bash` → `./실행`에서만 `required file not found`
+- `eixt` 오타: 문법 검사(`bash -n`)로도, 그 경로를 안 타는 테스트로도 안 잡힘 → 검증의 한계
+- 테스트 스크립트에서 출력 비교는 `=`(문자열), 상태 비교는 `-eq`(숫자). 빈 값을 `-eq`로 비교하면 `integer expression expected`
+- `local x` 선언과 `x=$(...)`를 **두 줄로** 나눠야 `$?`가 보존됨
