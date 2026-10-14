@@ -29,7 +29,7 @@ ls [옵션] [경로]
 -d    디렉토리 자체만 (내용물 X)
 ```
 
-조합 예: `ls -lh`, `ls -la`, `ls -ltr`, `ls -ld 폴더명`
+조합 예: `ls -lh`, `ls -la`, `ls -lhS`, `ls -ld 폴더명`
 
 ---
 
@@ -68,13 +68,9 @@ sort [옵션] file
 
 -n    숫자 기준 정렬
 -r    역순
--u    중복 제거하며 정렬
--f    대소문자 무시
--k N,M   N~M번째 필드 기준 정렬
--t"구분자"  필드 구분자 지정
 ```
 
-조합 예: `sort -n`, `sort -rn`, `sort -k1,1rn -k2,2`
+조합 예: `sort -n`, `sort -rn`
 
 ---
 
@@ -103,7 +99,6 @@ wc -w file    # 단어 수
 ```
 find 경로 -name "패턴"      # 이름으로 찾기
 find 경로 -type f/d          # 파일(f)/디렉토리(d) 타입으로
-find 경로 -name "패턴" -exec 명령어 {} \;   # 찾은 것마다 명령 실행
 ```
 
 예: `find data -name "*.log"`
@@ -169,7 +164,8 @@ ls -li                  # inode 번호
 
 ```bash
 명령 --help
-man 명령
+type 명령      # builtin인지 외부 프로그램인지
+which 명령     # 실행 파일 경로
 ```
 
 ## (W02B) grep 추가 옵션

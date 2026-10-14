@@ -263,15 +263,13 @@ for (int y = r.y; y < r.y + r.height; ++y) {
         size_t index = ((size_t)y * width + x) * 3;
         for (int c = 0; c < 3; ++c)
             rgb[index + c] = brighten_channel(rgb[index + c], gain);
-        ++pixels;          // ✅ 안쪽 반복문: 픽셀 수
+        ++pixels;          // 처리한 픽셀 수
     }
-    // ++pixels;           // ❌ 여기면 줄 수를 셈
 }
 return pixels;
 ```
 
-- `++pixels`가 바깥에 있으면 가로 4 × 세로 2 영역에서 8이 아니라 2를 리턴
-- 테스트 패턴: 가로 1칸짜리(세로 영역), 1×1 픽셀은 통과하고 가로가 넓은 영역만 실패 → 개수 세는 위치를 의심
+- 계약: 영역 안 RGB만 수정, 처리한 픽셀 수 리턴 / 잘못된 입력이면 0 리턴, 버퍼 그대로
 
 ## Week 06-A 핵심 요약
 
@@ -338,11 +336,10 @@ for (int y = r.y; y < r.y + r.height; ++y) {
 return pixels;
 ```
 
-## 버그 두 가지와 테스트 패턴
+## stride 버그와 테스트 패턴
 
 | 버그 | count | 위치 | 정사각형 | 실패 테스트 |
 |---|---|---|---|---|
-| `++pixels`가 바깥 반복문 | ❌ (줄 수를 셈) | ✅ | 실패 | landscape, square, entire |
 | `y * height` (stride) | ✅ | ❌ | **통과** | landscape, portrait, last pixel, entire, clamp value |
 
 - stride 버그는 `width == height`면 티가 안 나서 **정사각형만 통과**
@@ -352,7 +349,7 @@ return pixels;
 디버그 입력: 4×3 이미지, 값 전부 10, 영역 `{1,1,2,1}`, gain 40
 
 ```
-(gdb) break brighten_region      (또는 break region.c:17)
+(gdb) break brighten_region
 (gdb) run
 (gdb) display width              → 4
 (gdb) display height             → 3
@@ -373,17 +370,6 @@ return pixels;
 - `'2'`는 50을 문자(ASCII)로도 보여준 것 → `print /u`로 숫자만
 
 수정 후 `make region-check` → 12 PASS (회귀 확인)
-
-## 실습 중 겪은 문제와 해결
-
-| 증상 | 원인 | 해결 |
-|---|---|---|
-| `run` 후 다운로드에 멈춤, `Ctrl+C` 안 먹힘 | debuginfod가 시스템 라이브러리 디버그 정보를 내려받음 | 질문에 `n` / `~/.gdbinit`에 `set debuginfod enabled off` / 멈추면 다른 터미널에서 `pkill -9 gdb` 후 `reset` |
-| `Start it from the beginning? (y or n)` | 이전 실행이 남아 있음 | `y` |
-| `step`인데 함수 안으로 안 들어감 | ① 함수 호출이 없는 줄 ② 그 함수가 `-g` 없이 컴파일됨 | `list 함수`로 확인. 수동으로 `-g` 없이 만든 `filters.o`를 Make가 최신으로 판단해 재사용함 → `rm build/filters.o lib/libfilters.a` 후 `make` |
-| `cannot find build/main.o` | 수동 빌드에서 `main.c`, `image_io.c`를 `-c` 안 함 | 모든 `.c`를 `-c` 후 링크, 또는 `make` |
-
-**교훈:** Make는 파일 시각만 보고 **옵션(-g) 차이는 모른다** → 옵션이 바뀌면 `make clean`
 
 ## 디버깅 증거 정리 (슬라이드 29)
 

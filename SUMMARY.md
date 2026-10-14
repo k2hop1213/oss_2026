@@ -112,7 +112,6 @@ Tab 자동완성 · ↑↓ 히스토리 · Ctrl+R 히스토리 검색 · Ctrl+C 
 | `AM` | 새 파일 add 후 또 수정 |
 | ` D` / `D ` | 그냥 삭제 / `git rm`으로 삭제 |
 | `R` | 이름 변경 (`git mv`) |
-| `UU` | 충돌 |
 | `!!` | 무시됨 (`--ignored`일 때) |
 
 왼쪽 글자 = 커밋↔스테이징 / 오른쪽 글자 = 스테이징↔작업 폴더
@@ -267,7 +266,6 @@ gcc build/main.o build/logutil.o -o build/logcount
 |---|---|
 | `expected ';'` | 컴파일 |
 | `undefined reference` | **링크** (정의 든 .o 빠짐) |
-| (수업 외) `multiple definition` | 링크 (정의 중복) — 슬라이드엔 없음 |
 | 개수가 2가 아니라 3 | 프로그램 동작 (로직) |
 
 - `strstr`(어디든 포함) vs `strncmp`(접두사) → `INFO no ERROR detected` 때문에 3. **컴파일은 문법만 봐서** 성공
@@ -371,7 +369,7 @@ LD_LIBRARY_PATH="$PWD/build" ./build/logcount_shared data/app.log
 
 ### region 실습
 - index = `((size_t)y * width + x) * 3` (RGB 3바이트)
-- 정사각형만 통과 → stride(width) 버그 / 픽셀 수 틀림 → `++pixels` 위치 버그
+- stride 버그(`y * height`): 정사각형만 통과 (width == height라 티가 안 남)
 
 ### Git
 올림: `src/ include/ Makefile tests/ README.md .gitignore` / 안 올림: `build/*.o lib/*.a bin/ output/*.png`

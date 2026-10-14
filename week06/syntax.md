@@ -193,19 +193,11 @@ for (size_t i = 0; i < count; i += 3) {
 ## GDB 추가
 
 ```
-gdb -q -tui ./prog                 # 소스 화면 + 명령창
-(gdb) layout src                   # TUI 켜기, 화면 깨지면 Ctrl+L
-break 파일.c:줄번호
+gdb -q -tui ./bin/debug_region     # 소스 화면 + 명령창
+(gdb) layout src                   # 이미 열린 GDB에서 TUI 켜기, 화면 깨지면 Ctrl+L
 display 식                         # 멈출 때마다 자동 출력
 print /u 변수                      # unsigned 숫자로
-list 함수                          # 소스 보기 (디버그 정보 확인용)
-info breakpoints
-set debuginfod enabled off         # 다운로드 끄기
-```
-
-```bash
-echo "set debuginfod enabled off" >> ~/.gdbinit
-gdb -q -batch -ex "break f" -ex run -ex "print x" ./prog   # 명령을 한 번에
+quit                               # 고친 뒤 다시 빌드하기 전에 종료
 ```
 
 | GDB | VS Code |

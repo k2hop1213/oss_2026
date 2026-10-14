@@ -48,13 +48,8 @@ git pull --ff-only
 
 ## 브랜치
 
-```
-git branch                 # 목록 보기
-git branch 이름             # 브랜치 생성
-git checkout 이름           # 브랜치 이동
-git checkout -b 이름        # 생성 + 이동
-git merge 브랜치이름        # 현재 브랜치에 합치기
-```
+- 브랜치 = 커밋을 가리키는 이동 가능한 참조
+- merge 커밋은 부모가 2개 (명령어는 수업 범위 밖)
 
 ## .gitignore
 
@@ -97,24 +92,12 @@ git restore 파일            # 작업 파일을 스테이징 버전으로
 
 ```bash
 git clone URL [폴더]
-git fetch
-git log --oneline main..origin/main   # 받아온 새 커밋
-git merge origin/main
-git merge --ff-only origin/main
-git pull                      # fetch + merge
-git pull --ff-only
-git pull --no-rebase          # 갈라졌을 때 merge 방식으로
-git push
-```
-
-## 충돌
-
-```bash
-git status --short     # UU 파일
-# 파일에서 <<<<<<< ======= >>>>>>> 정리
-git add 파일
-git commit
-git merge --abort      # 취소
+git remote -v                 # 연결된 원격 확인
+git remote add origin URL
+git fetch                     # 받기만 (통합 X)
+git pull --ff-only            # fetch + 통합, 갈라졌으면 중단
+git push -u origin main       # 처음
+git push                      # 이후
 ```
 
 ## GitHub 인증 (gh)

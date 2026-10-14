@@ -383,15 +383,6 @@ $ git push
 
 **전제 조건**: 원격 접근 가능 + 쓰기 권한 + 호환되는 히스토리
 
-### 자주 겪는 문제
-| 에러 | 원인 | 해결 |
-|---|---|---|
-| `Authentication failed` | 비밀번호 직접 입력 시도 | Personal Access Token(PAT) 사용 |
-| `Permission ... denied` | 접근 권한 없는 저장소 | 협업자 초대 요청 |
-| `src refspec main does not match` | 로컬 브랜치명이 `master`인데 `main`으로 push 시도 | `git branch`로 확인 후 이름 맞추기 |
-| `[rejected] (fetch first)` | 원격에 이미 다른 커밋 존재 | `git pull` 먼저 실행 |
-| push는 성공했는데 GitHub에 안 보임 | 커밋 자체가 없었거나(`git status`로 확인), 다른 브랜치로 올라갔거나, 새로고침 안 함 | `git log --oneline`, `git branch`, `git remote -v`로 확인 |
-
 ---
 
 ## 23. 원격 변경사항 받아오기 (pull)
@@ -570,7 +561,6 @@ git push
 | `MM` / `AM` | add 후 또 수정 |
 | `D ` / ` D` | 삭제 스테이징됨 / 삭제했지만 반영 안 함 |
 | `R ` | 이름 바뀜 (`git mv`) |
-| `UU` | merge 충돌 미해결 |
 
 - 기준은 "처음 add인가"가 아니라 **마지막 커밋에 그 파일이 있었나**
 - `rm --cached` 후 커밋 **전**에 다시 add → `M` / 커밋 **후** 다시 add → `A`
@@ -618,33 +608,10 @@ git push
 | `fetch` | 그대로 | `origin/main`만 갱신 | **그대로** |
 | `pull` | 그대로 | 바뀜 | **바뀔 수 있음** |
 
-- `pull` = `fetch` + `merge origin/main`
-- fetch 후 통합: `git log --oneline main..origin/main` → `git merge origin/main`
-- push가 거절되면 먼저 pull(또는 fetch + merge)
+- `pull` = fetch + 현재 브랜치에 통합
 
 ## Fast-forward
 
 - 내 브랜치에 새 커밋이 없어서 원격이 **연장선**일 때 → merge 커밋 없이 **위치만 앞으로**
 - 갈라졌으면(둘 다 새 커밋) → merge 커밋(부모 2개) 필요
 - `--ff-only`: fast-forward 가능할 때만, 아니면 거부
-
-## Merge가 합치는 방식
-
-- **공통 조상** 기준으로 양쪽 변경 비교
-- 다른 파일 / 같은 파일 다른 줄 → 자동으로 둘 다 반영
-- **같은 줄을 다르게** → 충돌
-
-```
-<<<<<<< HEAD
-내 브랜치 내용
-=======
-합치려는 브랜치 내용
->>>>>>> 브랜치
-```
-해결: 파일 수정(표시 3줄 삭제) → `git add` → `git commit` / 취소: `git merge --abort`
-
-## pull 했는데 충돌
-
-- 갈라진 상태에서 그냥 `git pull` → `fatal: Need to specify how to reconcile divergent branches.`
-  → `git pull --no-rebase` (merge 방식) 또는 `git config pull.rebase false`
-- 충돌 시 merge와 똑같이 해결하거나 `git merge --abort`

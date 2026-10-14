@@ -31,7 +31,7 @@ grep 결과가 필요하면 바로 다음 줄에서 `status=$?`로 저장한다.
 
 - 명령어는 끝까지: `-Iinclude`(`-` 필수), `git restore --staged 파일이름`
 - "~로 설명하시오" → 그 용어(T/U 등)를 답에 넣기
-- 에러 이름 정확히: `undefined reference to '함수'`, `multiple definition of '함수'`
+- 에러 이름 정확히: `undefined reference to '함수'`
 - 출력 예측은 화면에 나오는 줄 전부, 줄바꿈까지
 
 ## 🟢 이미 잘하는 것

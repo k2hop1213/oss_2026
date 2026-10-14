@@ -461,9 +461,8 @@ LD_LIBRARY_PATH="$PWD/build" ./build/logcount_shared data/app.log    # 2
 
 ## 어셈블 (3단계)
 
-- 어셈블리어(텍스트, `leal 1(%rdi), %eax`) → 기계어(숫자, `8d 47 01`) → `.o`
-- 명령과 숫자가 거의 1:1이라 단순. 에러는 거의 컴파일 단계에서 남
-- `.o`는 `relocatable`: 다른 파일 함수(U)가 아직 연결 안 돼서 단독 실행 불가 → 링크 필요
+- 어셈블리(텍스트) → 기계어 → `.o`
+- `.o` = 기계어 + 링크 정보. **최종 프로그램이 아님** → 링크 필요
 
 ```
 main.c ─전처리→ .i ─컴파일→ .s ─어셈블→ .o ─링크→ 실행파일
@@ -483,19 +482,10 @@ main.c ─전처리→ .i ─컴파일→ .s ─어셈블→ .o ─링크→ 실
 gcc main.o liblogutil.a -o app     ✅
 gcc liblogutil.a main.o -o app     ❌ undefined reference
 ```
-- 링커는 왼쪽부터 한 번만 읽고, `.a`에서는 **그 시점에 필요한 것만** 꺼냄
-- `.o`는 통째로 들어가서 순서 무관. 순서가 문제 되는 건 `.a`, `-l`
-- `-lm`이 항상 맨 끝인 이유
+- 슬라이드: "The caller appears before the archive"
+- 6주차 Makefile에서도 `$(LDLIBS)`(`-lm`)는 맨 뒤
 
 ## `-O0`
 
-- 최적화 레벨 0 = 최적화 끔. 소스와 기계어가 1:1
-- 최적화하면 GDB에서 `<optimized out>`, 줄 건너뛰기 → 디버깅용으로 `-g -O0`
+- 최적화 끔 → GDB로 한 줄씩 따라가기 쉬움 (6주차: `-g -O0`)
 - 대문자 `-O`(최적화) vs 소문자 `-o`(출력 파일)
-
-## 수동 빌드에서 자주 하는 실수
-
-```
-cannot find build/main.o: No such file or directory
-```
-→ 링크에 넣을 `.o`를 안 만듦. 모든 `.c`를 `-c`로 만든 뒤 링크 (Make가 이걸 대신 챙겨줌)

@@ -101,8 +101,6 @@ LD_LIBRARY_PATH="$PWD" ./app                  # 실행 시 찾는 경로
 
 ```bash
 nm 파일.o            # T / U
-objdump -d 파일.o    # 기계어와 어셈블리 같이 보기
-file 파일.o          # ELF ... relocatable
 ar t lib이름.a       # 아카이브 안의 .o 목록
 ```
 
