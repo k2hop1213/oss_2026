@@ -2,7 +2,7 @@
 
 인천대학교 오픈소스SW설계 강의 내용과 문법을 주차별로 정리한 저장소입니다.
 
-> ⭐ **핵심 개념만: [CORE.md](CORE.md)**
+> ⭐ **핵심 개념만: [CORE.md](CORE.md)** · **그 문법: [CORE_SYNTAX.md](CORE_SYNTAX.md)**
 >
 > 🔥 **퀴즈 직전 요약: [SUMMARY.md](SUMMARY.md)** · **문법 알짜: [SYNTAX.md](SYNTAX.md)** · **개념 알짜: [CONCEPTS.md](CONCEPTS.md)** · **실습 핵심: [LABS.md](LABS.md)**
 
