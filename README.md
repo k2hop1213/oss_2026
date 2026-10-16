@@ -13,7 +13,7 @@
 | 4주차 | 셸 스크립트 (이론 + 실습) | [notes](week04/notes.md) | [syntax](week04/syntax.md) |
 | 5주차 | gcc와 라이브러리 (이론 + 실습) | [notes](week05/notes.md) | [syntax](week05/syntax.md) |
 | 6주차 | Make와 디버깅 (이론 + region 실습) | [notes](week06/notes.md) | [syntax](week06/syntax.md) |
-| 7주차 | 테스트와 CI (GitHub Actions) | [notes](week07/notes.md) | [syntax](week07/syntax.md) |
+| 7주차 | 테스트와 CI (GitHub Actions) | [notes](week07/notes.md) · [슬라이드 가이드](week07/slides_guide.md) | [syntax](week07/syntax.md) |
 
 - **notes.md**: 개념 설명, 예제, 실습 내용, 핵심 요약, 복습하며 나온 질문 정리
 - **syntax.md**: 설명 없이 문법 형태만 모은 치트시트
