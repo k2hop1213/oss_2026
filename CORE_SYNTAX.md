@@ -151,3 +151,96 @@ gdb ./app            gdb --args ./bin/test_filters        gdb -q -tui ./bin/debu
 (gdb) quit
 ```
 - 계산: 250+40 → **34** · 200+100 → **44** · 20−50 → **226** · 너비 4의 (1,1) → **15**
+
+---
+
+## 9주차 — 파일 입출력
+
+| # | 개념 | 문법 |
+|---|---|---|
+| 1 | fd vs FILE\* | `int fd = open(p, O_RDONLY);` · `FILE *f = fopen(p, "r");` |
+| 2 | 0/1/2 | `./prog in > out 2> err` · `fprintf(stderr, ...)` |
+| 3 | 반환 약속 | `if (fd < 0)` · `if (!f)` · `while (getline(&line, &cap, in) >= 0)` → `if (ferror(in))` |
+| 4 | 부분 처리 | `n = read(fd, buf, 64)` → n만큼 · `write(fd, buf + done, len - done)` 반복 |
+| 5 | getline | `char *line = NULL; size_t cap = 0;` … `free(line);` · `line[strcspn(line, "\r\n")] = '\0';` |
+| 6 | ? ≠ 0.0 | `kind == 0 → s->missing++` · `mean = sum / valid` · valid 0 → `%02d,0,%u,,` |
+| 7 | fclose 확인 | `if (fclose(out) == EOF) rc = -1;` · `if (fflush(stdout) == EOF)` |
+| 8 | O_EXCL | `open(path, O_WRONLY \| O_CREAT \| O_EXCL, 0644)` |
+| 9 | fd → FILE\* | `FILE *out = fdopen(fd, "w");` 실패면 `close(fd)` |
+| 10 | 흔적 없이 | `unlink(path);` · `int saved = errno; ... errno = saved;` |
+
+```bash
+mkdir -p output          # 없으면 open → ENOENT
+cmp before.csv after.csv && echo same
+test ! -e output/bad.csv
+strace -e trace=openat,read,write,close -o out.trace ./prog in.csv
+```
+
+---
+
+## 10주차 — 프로세스
+
+| # | 개념 | 문법 |
+|---|---|---|
+| 1 | 프로세스 | `getpid()` · `getppid()` · `echo $$` |
+| 2 | fork | `pid_t pid = fork();` → `<0` 실패 / `==0` 자식 / 그 외 부모 |
+| 3 | 순서 | `waitpid(pid, NULL, 0);` 후 부모 출력 |
+| 4 | 메모리 따로 | 자식 `value = 20` → 부모 `value` 10 그대로 |
+| 5 | execvp | `char *argv[] = {"wc", "-l", "f", NULL}; execvp(argv[0], argv);` |
+| 6 | 127 | `perror(argv[0]); _exit(127);` |
+| 7 | 상태 해석 | `if (WIFEXITED(st)) return WEXITSTATUS(st);` · `128 + WTERMSIG(st)` |
+| 8 | 그대로 전달 | `./bin/demo ./bin/probe 7; echo $?` → 7 · fork/wait 실패 125 |
+| 9 | 셸 보존 | 자식만 exec, 부모는 `return pid;` → main이 wait |
+| 10 | cd builtin | `if (chdir(argv[1]) != 0) perror("cd"); return 1;` |
+
+```c
+while (waitpid(pid, &status, 0) < 0) {
+    if (errno == EINTR) continue;
+    perror("waitpid"); return 125;
+}
+```
+
+---
+
+## 11주차 — 시그널
+
+| # | 개념 | 문법 |
+|---|---|---|
+| 1 | 대응 방식 | `sa.sa_handler = handler;` · `SIG_IGN` · `SIG_DFL` |
+| 2 | 터미널 | `Ctrl+C` SIGINT · `Ctrl+Z` SIGTSTP · `kill -TERM "$pid"` |
+| 3 | 못 막음 | `kill -9 "$pid"` (SIGKILL) |
+| 4 | 작업 제어 | `jobs` · `bg %1` · `fg %1` · `cmd &` · `echo $!` |
+| 5 | 플래그 | `static volatile sig_atomic_t stop = 0;` · `void h(int s){ stop = 1; }` |
+| 6 | sigaction | `struct sigaction sa = {0}; sigemptyset(&sa.sa_mask); if (sigaction(SIGTERM, &sa, NULL) == -1)` |
+| 7 | 차단 | `sigprocmask(SIG_BLOCK, &set, &old);` … `sigprocmask(SIG_SETMASK, &old, NULL);` |
+| 8 | 합쳐짐 | 차단 중 3번 → pending 1 |
+| 9 | 보내고 회수 | `kill(pid, SIGTERM);` → `waitpid(pid, &st, 0)` · `waitpid(child, &st, WNOHANG)` → child / 0 / -1 |
+| 10 | 종료 코드 | `alarm(2)` → SIGALRM → 124 · SIGINT → 130 · 자식 TERM status 143 |
+
+```bash
+./bin/stop-flag & pid=$!
+kill -TERM "$pid"; wait "$pid"; echo $?      # 0
+timeout -v 2s tail -n 1 -f data/events.log; echo $?   # 124
+```
+
+---
+
+## 12주차 — 스레드
+
+| # | 개념 | 문법 |
+|---|---|---|
+| 1 | 스레드 | `static void *worker(void *arg) { Job *j = arg; ... return NULL; }` |
+| 2 | 0 = 성공 | `rc = pthread_create(&tid, NULL, worker, &job); if (rc != 0) strerror(rc)` · `gcc -pthread` |
+| 3 | join | `pthread_join(tid, NULL);` 후 결과 읽기 |
+| 4 | 순서 | create 반복 → join 반복 → 출력 반복 |
+| 5 | 완료 ≠ 성공 | join 후 `jobs[i].errors`, `jobs[i].failed` 확인 |
+| 6 | 성공만 join | `if (rc != 0) break; started++;` → `for (i < started) pthread_join` |
+| 7 | race | `gcc -pthread -fsanitize=thread ...` → data race 경고 |
+| 8 | mutex | `pthread_mutex_lock(&m); total += v; pthread_mutex_unlock(&m);` · `if (seats > 0) { --seats; }` lock 안 |
+| 9 | 데드락 | 모두 X → Y 순서 · `unlock` 후 `join` |
+| 10 | 겹치지 않는 칸 | `s[k] = (struct Strip){ k*N/W, (k+1)*N/W };` |
+
+```c
+pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_destroy(&m);      // 모두 끝나고 잠기지 않았을 때
+```

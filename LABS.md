@@ -1,4 +1,4 @@
-# OSS 실습 핵심 정리 (W02B ~ W06B + 내일 W07B 대비)
+# OSS 실습 핵심 정리 (W02B ~ W06B + W07B 대비, W09B ~ W12B)
 
 > 실습 슬라이드 기준. 각 실습마다 **무엇을 했나 → 체크포인트 정답 → 핵심 포인트**.
 > ⚠️ = 오늘 틀렸던 것
@@ -600,3 +600,282 @@ jobs:
       - run: make check
 ```
 - push마다 GitHub가 `make check` 실행 → **Actions 탭**에서 커밋별 ✅/❌
+
+---
+
+## W09B — 파일 입출력 실습 (`oss-w09`)
+
+**준비:**
+```bash
+base=https://gist.githubusercontent.com/Kyungho-Won
+id=f1b4aec11633fcb4a74d0d99b705a08e
+curl -L "$base/$id/raw/setup_w09.sh" -o setup_w09.sh && bash setup_w09.sh && cd oss-w09
+make && make check-base          # 3개 통과, power-report는 "Function not implemented"
+```
+- 셋업은 기존 `oss-w09`를 덮어쓰지 않음 → 이름 겹치면 새 폴더에서
+
+### load.c (`load_hours`)
+```c
+char *line = NULL; size_t capacity = 0; int rc = -1, previous = -1;
+if (getline(&line, &capacity, in) < 0) goto done;
+line[strcspn(line, "\r\n")] = '\0';
+if (strcmp(line, "minute,power_kw") != 0) goto done;
+while (getline(&line, &capacity, in) >= 0) {
+    int minute; double power;
+    int kind = parse_row(line, &minute, &power);     // 1 측정 / 0 ? / -1 잘못됨
+    if (kind < 0 || minute <= previous) goto done;
+    previous = minute;
+    Hour *s = &hours[minute / 60];
+    if (kind == 0) { s->missing++; continue; }
+    if (s->valid == 0 || power > s->peak) s->peak = power;
+    s->valid++; s->sum += power;
+}
+if (ferror(in)) { perror("read input"); goto done; }
+rc = 0;
+done: free(line); return rc;
+```
+- 확인: `./bin/power-report data/power_20061221.csv | head -14` → `11,58,2,...`
+
+### save.c (`save_report`)
+```c
+int fd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
+if (fd < 0) return -1;
+FILE *out = fdopen(fd, "w");
+if (!out) { int saved = errno; close(fd); unlink(path); errno = saved; return -1; }
+int rc = emit_csv(out, hours);
+int saved = rc < 0 ? errno : 0;
+if (fclose(out) == EOF) { if (rc == 0) saved = errno; rc = -1; }
+if (rc < 0) { unlink(path); errno = saved; }
+return rc;
+```
+
+### 체크포인트 ⚠️
+```bash
+mkdir -p output        # ⚠️ 없으면 "write report: No such file or directory"
+./bin/power-report data/power_20061221.csv output/hourly.csv; echo $?   # 0
+cp output/hourly.csv output/before.csv
+./bin/power-report data/power_20061221.csv output/hourly.csv; echo $?   # 1 (File exists)
+cmp output/before.csv output/hourly.csv && echo same                    # same
+printf 'minute,power_kw\n0,NaN\n' > output/bad.csv
+./bin/power-report output/bad.csv output/bad-report.csv; echo $?        # 1
+test ! -e output/bad-report.csv && echo "no file"
+make check                                                               # 19/19
+```
+- viewer.html: 탐색기 `\\wsl$\Ubuntu\home\사용자\...\oss-w09` → 크롬으로 열고 output/hourly.csv 선택
+
+### 추가 활동: check_extra.sh
+```bash
+curl -L "$base/$id/raw/setup_w09_activities.sh" -o setup_w09_activities.sh && bash setup_w09_activities.sh
+```
+| 경우 | 예측 |
+|---|---|
+| valid → 새 경로 | 0, 생성 |
+| invalid → 새 경로 | 1, 없음 |
+| valid → 이미 있는 경로 | 1, 그대로 |
+
+```bash
+#!/usr/bin/env bash
+set -eu
+work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+./bin/power-report activities/missing.csv "$work/missing.csv"
+grep -qx '02,0,2,,' "$work/missing.csv"
+./bin/power-report activities/valid.csv "$work/report.csv"
+cp "$work/report.csv" "$work/before.csv"
+if ./bin/power-report activities/valid.csv "$work/report.csv"; then echo FAIL >&2; exit 1; fi
+cmp -s "$work/before.csv" "$work/report.csv"
+if ./bin/power-report activities/invalid.csv "$work/bad.csv"; then echo FAIL >&2; exit 1; fi
+test ! -e "$work/bad.csv"
+echo "PASS extra checks"
+```
+- `make check` + `bash tests/check_extra.sh; echo $?` → 둘 다 통과, 0
+- 버그 넣기 확인: `O_EXCL` → `O_TRUNC`로 바꾸면 FAIL이 나야 함
+
+### W09 과제 (시간 범위)
+```c
+if (minute / 60 < start || minute / 60 >= end) continue;   // load.c L1, previous = minute 다음
+for (int h = start; h < end; h++) {                         // report.c R1
+```
+- `make check` 19/19, `make check-range` 3/10 → 10/10
+- 고치기 전 `git commit --allow-empty -m "Check starter"` → push → 실패 캡처 / 수정 후 성공 캡처 → PPT 2장
+
+---
+
+## W10B — 셸 실습 (`oss-w10-submission`)
+
+**준비:** Classroom50 W10 Command Shell → clone → `make demo` → `./bin/shell-demo`
+```
+oss-shell> wc -l data/sample.csv      → 6 data/sample.csv [exit=0]
+oss-shell> ./missing-command          → [exit=127]
+oss-shell> quit
+```
+
+### 활동 1 — start.c
+```c
+pid_t pid = fork();
+if (pid < 0) { perror("fork"); return -1; }
+if (pid == 0) { execvp(argv[0], argv); perror(argv[0]); _exit(127); }
+return pid;
+```
+- `make check-start`: 인자 전달, 127, **다음 명령(NEXT)도 받음**
+- ⚠️ fork 없이 exec → 출력은 같지만 셸이 wc로 바뀌어 사라짐 → NEXT 못 받음
+
+### 활동 2 — wait.c
+```c
+if (WIFEXITED(status)) return WEXITSTATUS(status);   // 시그널 분기 앞에
+```
+| probe 7 (1792) | 결과 |
+|---|---|
+| `return 0;` | [exit=0] |
+| `return status;` | [exit=1792] |
+| `WEXITSTATUS` | **[exit=7]** |
+- ⚠️ 0으로 끝나는 명령만 테스트하면 셋 다 0 → 못 찾음
+
+### 활동 3 — builtin.c
+```c
+if (chdir(argv[1]) != 0) perror("cd");
+return 1;
+```
+- ⚠️ 검사 강화: `cd data → cd .. → wc` 는 셸 chdir / 자식 chdir 둘 다 6 → **cd data 다음 pwd** 넣으면 구분
+- 실패 cd: `cd data → cd ./missing-dir → pwd` → 여전히 .../data
+
+### 실패 원인
+| 명령 | exit | 보고자 |
+|---|---|---|
+| `grep ERROR events.log` | 0 | |
+| `grep WARNING events.log` | 1 | grep |
+| `grep ERROR missing.log` | 2 | **grep** (exec 성공) |
+| `./missing-command` | 127 | **exec 실패** |
+| `/bin/echo NEXT` | 0 | 셸 살아 있음 |
+
+### 제출
+```bash
+make check                                     # 9개
+git add src && git commit -m "Implement command shell" && git push
+```
+
+---
+
+## W11B — 시그널 실습 (`oss-w11-signals`)
+
+**준비:** Classroom50 W11 Signal Handling → clone → `make demo` → `mkdir -p out; cp data/events.log out/live.log`
+
+### 터미널 관찰 ⚠️
+```bash
+ping 127.0.0.1                      # Ctrl+C → 통계 출력 후 종료
+tail -n 1 -f out/live.log           # Ctrl+Z → [1]+ Stopped
+printf 'ERROR request=/new status=500\n' >> out/live.log
+bg                                  # 재개 → 이제 ERROR 줄 보임 (jobs에 & 표시)
+fg                                  # 앞으로 → Ctrl+C
+timeout -v 2s tail -n 1 -f data/events.log; echo $?     # 124
+```
+- tail을 여러 번 실행하고 Ctrl+Z하면 jobs에 쌓임 → `kill %1 %2 ...`로 정리
+
+### limit 데모
+```
+./bin/limit-demo 2 tail -n 1 -f data/events.log
+START parent=.. child=.. limit=2s
+REQUEST child=.. signal=SIGTERM
+COLLECTED child=.. status=143
+$? = 124
+```
+
+### 활동 1 — control.c
+```c
+static void on_signal(int signo) { requested_signal = signo; }
+/* install_control */
+if (sigaction(SIGALRM, &sa, NULL) == -1) return -1;
+if (sigaction(SIGINT,  &sa, NULL) == -1) return -1;
+```
+- `make check1` (deadline 14 → 124, interrupt 2 → 130)
+
+### 활동 2 — monitor.c
+```c
+pid_t result = waitpid(child, status, WNOHANG);
+if (result == child) return 0;
+if (result == -1 && errno != EINTR) return -1;
+if (requested_signal && !sent) {
+    if (kill(child, SIGTERM) == -1 && errno != ESRCH) return -1;
+    sent = 1;
+}
+```
+- `make check2` → `make check` 6/6
+
+### 활동 3 — 예측 ⚠️
+| 명령 | TERM | `$?` |
+|---|---|---|
+| `5 true` | 없음 | 0 |
+| `5 grep ERROR` | 없음 | 0 |
+| `5 grep FATAL` | 없음 | **1** |
+| `2 tail -f` | 있음 | **124** |
+| `30 tail -f &` → `kill -INT "$parent"` → `wait` | 부모가 보냄 | **130** |
+- 리뷰: `kill(child, SIGTERM); return 0;` → kill 검사 없음 + **waitpid 회수 전 return** → status 미설정, 좀비
+
+### 제출
+```bash
+git add src/control.c src/monitor.c && git commit -m "Implement signal handling" && git push   # 6/6
+```
+
+---
+
+## W12B — 스레드 실습 (`oss-w12-threads`)
+
+**준비:** Classroom50 W12 Threads 실습 → clone → `make examples && make demo`
+
+| 타깃 | 내 파일 |
+|---|---|
+| `make check1` | launch.c |
+| `make check2` | merge.c |
+| `make check` | 둘 다 (7/7) |
+
+### 활동 1 — launch.c
+```c
+for (size_t i = 0; i < count; i++) {
+    rc = pthread_create(&tids[i], NULL, scan_file, &jobs[i]);
+    if (rc != 0) break;
+    started++;
+}
+for (size_t i = 0; i < started; i++)
+    require_ok(pthread_join(tids[i], NULL), "pthread_join");
+return rc;
+```
+- 3개 중 2개 성공 → tids[0], [1]만 유효, join 2번, join 후 return, 전부 성공 0
+- 결과 `TOTAL lines=7 errors=3 failed=0`
+
+### 활동 2 — merge.c
+```c
+require_ok(pthread_mutex_lock(&summary->mutex), "lock");
+summary->counts.lines  += part->lines;
+summary->counts.errors += part->errors;
+summary->counts.failed += part->failed;
+require_ok(pthread_mutex_unlock(&summary->mutex), "unlock");
+```
+- `/tmp/observe lost` → 1 (기대 2) / `mutex` → 2 / `-fsanitize=thread` → data race 경고
+
+### 활동 3 — seat.c ⚠️
+```c
+if (available) { --seats; booked[id] = 1; }   // ✗ 옛 확인 결과 → 1석에 2명
+if (seats > 0) { --seats; booked[id] = 1; }   // ✓ 예약 순간 재확인
+```
+- 좌석 0/1/2 → confirmed 0/1/2, remaining 0. analysis.md에 실패 순서 기록
+
+### 활동 4 — 코드 리뷰 (analysis.md)
+| 코드 | 판단 | 수정 |
+|---|---|---|
+| 반복문 안 create 직후 join | 정확, **동시성 없음** | create/join 반복문 분리 |
+| mutex 쥔 채 run_jobs | **데드락** (main은 join, worker는 mutex 대기) | mutex 없이 호출 |
+
+### 활동 5 — strips.c ⚠️
+```c
+s[k] = (struct Strip){ k*N/W, (k+1)*N/W };    // 원래 k*(N/W) → 10,3이면 9번 누락
+```
+- (12,3) [0,4)[4,8)[8,12) / (10,3) [0,3)[3,6)[6,10) / (2,3) [0,0)[0,1)[1,2) 빈 띠 OK
+- 겹치지 않는 칸 → mutex 불필요, join은 필요
+
+### 제출
+```bash
+cd "$(git rev-parse --show-toplevel)"
+make check && git diff
+git add src/launch.c src/merge.c analysis.md activities/seat/seat.c activities/image/strips.c
+git commit -m "Implement thread activities" && git push
+git rev-parse HEAD       # Actions SHA와 비교, 7/7
+```

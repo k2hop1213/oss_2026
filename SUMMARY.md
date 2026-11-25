@@ -1,4 +1,4 @@
-# OSS 퀴즈 직전 알짜 요약 (2~6주차)
+# OSS 퀴즈 직전 알짜 요약 (2~6·9~12주차)
 
 > 시험 직전 10분: **⚠️ 표시**만 다시 보기. 내가 실제로 틀렸던 것들.
 
@@ -376,10 +376,162 @@ LD_LIBRARY_PATH="$PWD/build" ./build/logcount_shared data/app.log
 
 ---
 
-## 6. 시험장 체크리스트 ✅
+## 6. 9주차 — 파일 입출력
+
+### 두 층
+| | fd | FILE \* |
+|---|---|---|
+| 함수 | open/read/write/close | fopen/getline/fprintf/fclose |
+| 정체 | 정수 번호 (보통 3) | fd + **버퍼** |
+- fd 0 stdin / 1 stdout / 2 stderr
+
+### 반환값 ⚠️
+| 함수 | 성공 | EOF | 실패 |
+|---|---|---|---|
+| open | fd ≥ 0 | | **-1** |
+| read | 바이트 수 | **0** | -1 |
+| getline | 글자 수 | **-1** | -1 → `ferror`로 구분 |
+| write | 쓴 수 (**일부만** 가능) | | -1 |
+| fopen/fdopen | FILE\* | | **NULL** |
+| fclose/fflush | 0 | | **EOF** |
+
+### 데이터
+- minute 0~1439, **시 = minute / 60**
+- `?` = missing (평균 분모 제외), `0.0` = valid. 1.0, ?, 3.0 → **2.0**
+- 유효값 0 → mean, peak 빈칸 (`02,0,2,,`)
+
+### 안전한 저장
+`open(O_WRONLY|O_CREAT|O_EXCL, 0644)` → `fdopen` → `fprintf` → **`fclose` 확인** → 실패면 `unlink`
+
+| 상황 | 출력 파일 |
+|---|---|
+| 입력 없음 / 잘못된 입력 | 안 만듦 |
+| 이미 있음 | **보존** |
+| 쓰기/닫기 실패 | **삭제** |
+| 출력 폴더 없음 | open 실패 (ENOENT) |
+- `>`는 셸이 **먼저 비움** / 이름을 받으면 프로그램이 O_EXCL로 보호
+- strace: stderr가 먼저 찍힘 = **stdout 버퍼링** 증거, getline이어도 실제는 `read(4096)`
+
+### 과제
+`[start, end)` → `if (minute/60 < start || minute/60 >= end) continue;` · `for (h = start; h < end; h++)` · 600·719분 포함, 599·720 제외
+
+---
+
+## 7. 10주차 — 프로세스
+
+### fork / exec / wait
+| | |
+|---|---|
+| `fork()` | 부모 = **자식 PID** / 자식 = **0** / 실패 = **-1** |
+| `execvp(argv[0], argv)` | 성공 = 바뀜, **PID 유지**, 안 돌아옴. argv 끝 NULL |
+| exec 실패 | `perror` + **`_exit(127)`** |
+| `waitpid(pid, &st, 0)` | 기다림, EINTR이면 재시도 |
+| `WIFEXITED → WEXITSTATUS` | 1792 → **7** |
+| `WIFSIGNALED → WTERMSIG` | 시그널 번호 |
+- fork 후 **메모리 따로** (자식 20, 부모 10 그대로)
+- 실행 순서는 OS가 정함
+
+### 종료 코드 ⚠️
+| 상황 | 코드 |
+|---|---|
+| 자식 반환값 | 그대로 (7 → 7) |
+| exec 실패 | **127** |
+| fork/wait 실패 (runner) | **125** |
+| 시그널 종료 (실습) | **128 + n** |
+
+### 셸 실습
+- start: fork → 자식 exec → 부모 `return pid` / **fork 없이 exec → 셸이 사라짐**
+- wait: `WEXITSTATUS` (A `return 0` → 0, B `return status` → 1792, **C** → 7). 0만 테스트하면 버그 못 찾음
+- cd: **부모에서 chdir** (자식에서 하면 부모 그대로) → 테스트에 **pwd**
+
+---
+
+## 8. 11주차 — 시그널
+
+### 이름 ⚠️
+| 시그널 | 발생 | 기본 |
+|---|---|---|
+| SIGINT (2) | **Ctrl+C** | 종료 |
+| SIGTERM (15) | **kill** | 종료 |
+| SIGTSTP | **Ctrl+Z** | 정지 |
+| SIGCONT | bg/fg | 재개 |
+| SIGKILL (9) | kill -9 | 강제 종료 |
+| SIGALRM (14) | alarm | 종료 |
+| SIGCHLD | 자식 상태 변화 | |
+- **SIGKILL, SIGSTOP은 잡기·차단·무시 불가**
+
+### 작업 제어
+`jobs` 목록 · `bg` 뒤에서 재개 · `fg` 앞으로 · `cmd &` · `$!` 마지막 백그라운드 PID
+- 포그라운드/백그라운드(입력) ≠ 실행/정지(상태) / Ctrl+C는 **포그라운드에만**
+- bg로 재개하면 jobs에 `&`가 붙어 표시됨
+
+### 핸들러
+- `volatile sig_atomic_t` 플래그만, 처리는 main (printf·malloc 안전 X)
+- `sigaction(SIG, &sa, NULL) == -1`이면 실패
+- 플래그 복사·지우기 → `sigprocmask(SIG_BLOCK)` → 복원 (차단 = 미룸, 무시 = 버림)
+- 같은 시그널 3번 → pending **1개** (개수 세기 X)
+
+### 완료
+- **kill = 요청, waitpid = 완료 증거**
+- `waitpid(-1/child, &st, WNOHANG)` → PID 회수 / **0** 실행 중 / **-1 ECHILD** 자식 없음
+- SIGTERM + 핸들러 → 정리 후 **exit 0** / SIGKILL → **signal 9**
+
+### limit ⚠️
+| 상황 | `$?` |
+|---|---|
+| 시간 초과 | **124** (자식 status는 143) |
+| Ctrl+C / kill -INT 부모 | **130** |
+| exec 실패 | 127 |
+| grep 못 찾음 | **1** (그대로) |
+
+---
+
+## 9. 12주차 — 스레드
+
+### 기본
+- 스레드 = 프로세스 안 실행 흐름. **스택만 따로**, 코드·데이터·힙 공유
+- `pthread_create(&tid, NULL, fn, &arg)` / `pthread_join(tid, NULL)` → **0 = 성공** (에러 번호, -1 아님)
+- `gcc -pthread`
+
+| | 프로세스 | 스레드 |
+|---|---|---|
+| 만들기 | fork | pthread_create |
+| 기다리기 | waitpid | pthread_join |
+| 메모리 | 따로 | **공유** |
+
+### 규칙 ⚠️
+- **join 후에** 결과 읽기 / join = 완료, 성공은 결과로
+- join 순서 ≠ 끝나는 순서
+- 생성 실패 → **성공한 것만 join** 후 return
+- 인자는 join 전까지 살아 있어야 함
+
+### 동기화
+- lost update: A·B 둘 다 0 읽음 → 1+2가 **2**
+- data race = UB, 한 번 맞아도 안전 증거 X, sleep은 해결책 X
+- mutex: **읽기 + 더하기 + 쓰기** 전부 lock 안, 같은 mutex
+- 좌석: 확인과 예약을 **같은 lock 안에서** (`if (seats > 0)`)
+- 이체: lock 한 번에 빼고 더하기, 읽을 때 두 값 함께 복사
+
+### 데드락
+- lock 순서 엇갈림 → **같은 순서**
+- mutex 쥔 채 join → **unlock 후 join**
+- create 직후 join(반복문 안) → 정확하지만 **동시성 없음**
+
+### 나누기
+- 겹치지 않는 칸 → mutex 불필요, **join은 필요**
+- `k*(N/W)` → 10,3이면 9번 누락 / `k*N/W` → [0,3) [3,6) [6,10)
+- 직렬 4 + 병렬 6: 2개 7초(1.43배), 최대 **2.5배**
+
+---
+
+## 10. 시험장 체크리스트 ✅
 - [ ] 단답 명령: **파일명, 대시, 경로** 다 썼나?
 - [ ] 출력 문제: **모든 줄** 다 썼나?
 - [ ] `$?` 앞에 다른 명령 끼어 있나?
 - [ ] 경계값 (`-lt` vs `-le`, `>` vs `>=`) 숫자 넣어 확인
 - [ ] status 코드 왼쪽/오른쪽 자리
 - [ ] 오버플로 ±256 검산
+- [ ] 반환값: read **0** = EOF / getline **-1** / pthread **0** = 성공 (에러 번호)
+- [ ] 종료 코드: 127 exec 실패 / 124 시간 초과 / 130 SIGINT / 128+n
+- [ ] fork 반환값 부모·자식 반대로 쓰지 않았나
+- [ ] "왜?" 서술형: 무엇을 → 왜 → 그래서 (O_EXCL, unlink, builtin cd, join 후 읽기)

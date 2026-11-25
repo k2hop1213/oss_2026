@@ -27,6 +27,23 @@ grep 결과가 필요하면 바로 다음 줄에서 `status=$?`로 저장한다.
 - commit하면 **add한 시점의 버전**만 들어감
 - `git diff` = add 안 한 수정 / `git diff --staged` = 커밋될 수정
 
+## 🔵 9~12주차 헷갈렸던 것
+
+**1. getline으로 읽은 줄에는 `\n`이 붙어 있다**
+- 헤더 비교 전에 `line[strcspn(line, "\r\n")] = '\0';`
+
+**2. `write report: No such file or directory` = 출력 폴더가 없는 것**
+- `O_CREAT`는 파일만 만들고 폴더는 안 만듦 → `mkdir -p output`
+
+**3. fdopen의 fd는 바로 위 open이 준 번호, fclose가 그 fd까지 닫는다**
+- fclose 후 close(fd)를 또 하면 이중 닫기
+
+**4. jobs의 `&`는 직접 안 쳐도 bg로 재개하면 붙는다**
+- `&` = 지금 백그라운드에서 실행 중
+
+**5. join은 스레드를 지우는 게 아니라 끝날 때까지 기다리는 것**
+- 지운 건 TODO 주석과 `return ENOSYS;` 같은 임시 코드
+
 ## 🟡 답안 작성 습관
 
 - 명령어는 끝까지: `-Iinclude`(`-` 필수), `git restore --staged 파일이름`

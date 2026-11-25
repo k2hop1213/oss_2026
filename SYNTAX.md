@@ -1,4 +1,4 @@
-# OSS 문법 알짜 정리 (2~6주차, 강의·실습 슬라이드 기준)
+# OSS 문법 알짜 정리 (2~6·9~12주차, 강의·실습 슬라이드 기준)
 
 > 사용법: 오른쪽 설명을 가리고 왼쪽 명령의 뜻을 말해보기 → 반대로 뜻을 보고 명령을 써보기.
 > ⚠️ = 오늘 실제로 틀렸던 것
@@ -401,3 +401,122 @@ gdb -q -tui ./bin/debug_region
 - clamp: `int`로 계산 → 255/0으로 자르기 → 마지막에 변환
 - index = `((size_t)y * width + x) * 3` → 너비 4, (1,1) = **15**
 - stride 버그 `y * height` → 정사각형만 통과
+
+---
+
+## 9주차 — 파일 입출력
+
+### fd 계열
+| 문법 | 뜻 |
+|---|---|
+| `open(p, O_RDONLY)` | 읽기로 열기 → fd (실패 -1) |
+| `open(p, O_WRONLY \| O_CREAT \| O_EXCL, 0644)` | ⚠️ 새 파일일 때만 (이미 있으면 실패) |
+| `read(fd, buf, 64)` | 최대 64바이트 → 읽은 수 / ⚠️ **0 = EOF** / -1 |
+| `write(fd, buf + done, len - done)` | 남은 부분 쓰기 (일부만 될 수 있음) |
+| `close(fd)` | 닫기 |
+| `unlink(path)` | 파일 삭제 |
+
+### FILE 계열
+| 문법 | 뜻 |
+|---|---|
+| `fopen(p, "r")` | 읽기 (`"w"` 지우고 쓰기, `"a"` 이어쓰기, `"wx"` 새 파일만) → 실패 NULL |
+| `fdopen(fd, "w")` | fd → FILE\* |
+| `getline(&line, &cap, in)` | 한 줄 (`\n` 포함) → ⚠️ **-1 = EOF 또는 에러** |
+| `ferror(in)` | 에러였나? |
+| `fprintf(out, "%02d,%u\n", h, v)` | 형식 출력 (버퍼) |
+| `fwrite(buf, 1, n, stdout)` | n바이트 출력 |
+| `fflush(stdout)` | 버퍼 내보내기 (실패 EOF) |
+| `fclose(out)` | ⚠️ 버퍼 내보내고 닫기 (실패 EOF), fdopen 후엔 fd까지 |
+| `free(line)` | getline 메모리 해제 |
+
+### 에러
+| 문법 | 뜻 |
+|---|---|
+| `perror("open")` | `open: No such file or directory` (stderr) |
+| `errno` | 실패 이유 번호 (ENOENT, EEXIST, EACCES, ENOSPC, EINTR, ENOSYS) |
+| `int saved = errno; ...; errno = saved;` | 원래 이유 보존 |
+
+### 문자열
+| 문법 | 뜻 |
+|---|---|
+| `line[strcspn(line, "\r\n")] = '\0'` | 줄 끝 제거 |
+| `strcmp(line, "minute,power_kw") != 0` | 헤더 다름 |
+| `strtol(s, &end, 10)` / `strtod(s, &end)` | 숫자 변환, end = 숫자 끝 위치 |
+
+### 확인
+| 명령 | 뜻 |
+|---|---|
+| `cmd > out 2> err` | stdout / stderr 따로 |
+| `mkdir -p output` | ⚠️ 출력 폴더 (없으면 ENOENT) |
+| `cmp -s a b` | 같은지 |
+| `test ! -e f` | 없는지 |
+| `grep -qx '02,0,2,,' f` | 줄 전체 일치, 상태만 |
+| `strace -e trace=openat,read,write,close -o f.trace ./prog` | 시스템 콜 추적 |
+
+---
+
+## 10주차 — 프로세스
+
+| 문법 | 뜻 |
+|---|---|
+| `pid_t pid = fork();` | ⚠️ 부모 = 자식 PID / 자식 = 0 / 실패 = -1 |
+| `execvp(argv[0], argv)` | 프로그램 교체 (PID 유지), argv 끝 NULL |
+| `perror(argv[0]); _exit(127);` | ⚠️ exec 실패 |
+| `waitpid(pid, &status, 0)` | 그 자식 기다림 |
+| `waitpid(pid, NULL, 0)` | 상태 버리고 기다림 |
+| `if (errno == EINTR) continue;` | 끊기면 다시 기다림 |
+| `WIFEXITED(st)` / `WEXITSTATUS(st)` | ⚠️ 정상 종료? / 종료 코드 (1792 → 7) |
+| `WIFSIGNALED(st)` / `WTERMSIG(st)` | 시그널 종료? / 번호 |
+| `chdir(argv[1])` | ⚠️ 셸(부모)에서 cd |
+| `getpid()` / `getppid()` | 내 PID / 부모 PID |
+
+### 종료 코드 ⚠️
+`0` 성공 · `N` 그대로 · `127` exec 실패 · `125` runner 오류 · `128+n` 시그널 · `2` 사용법
+
+---
+
+## 11주차 — 시그널
+
+### C
+| 문법 | 뜻 |
+|---|---|
+| `volatile sig_atomic_t flag` | ⚠️ 핸들러와 공유하는 플래그 |
+| `void h(int signo) { flag = signo; }` | 핸들러 (플래그만) |
+| `struct sigaction sa = {0}; sa.sa_handler = h;` | 설정 |
+| `sigemptyset(&sa.sa_mask)` | 추가로 막을 시그널 없음 |
+| `sigaction(SIGTERM, &sa, NULL)` | 등록 (실패 -1) |
+| `kill(pid, SIGTERM)` | 보내기 (0 / -1). ESRCH = 대상 없음 |
+| `alarm(n)` / `alarm(0)` | n초 뒤 SIGALRM / 취소 |
+| `sigprocmask(SIG_BLOCK, &set, &old)` | 차단 (pending으로 미룸) |
+| `sigprocmask(SIG_SETMASK, &old, NULL)` | 복원 |
+| `waitpid(child, &st, WNOHANG)` | ⚠️ 안 기다림 → child / 0 / -1 |
+
+### 셸
+| 명령 | 뜻 |
+|---|---|
+| `Ctrl+C` / `Ctrl+Z` | ⚠️ SIGINT / SIGTSTP (포그라운드에만) |
+| `jobs` | 작업 목록 (`+` 최근, `-` 그 전) |
+| `bg` / `bg %1` | 정지된 작업을 **뒤에서** 재개 (표시에 `&`) |
+| `fg` / `fg %1` | **앞으로** 가져옴 |
+| `cmd &` / `$!` | 백그라운드 실행 / 그 PID |
+| `kill -TERM "$pid"` / `kill -INT` / `kill -9` | 시그널 보내기 |
+| `wait "$pid"; echo $?` | 백그라운드 작업의 종료 코드 |
+| `timeout -v 2s cmd` | 2초 뒤 TERM → `$?` 124 |
+| `tail -n 1 -f f` | 마지막 줄 + 계속 읽기 |
+
+---
+
+## 12주차 — 스레드
+
+| 문법 | 뜻 |
+|---|---|
+| `#include <pthread.h>` / `gcc -pthread` | 헤더 / 컴파일 |
+| `void *fn(void *arg)` | 시작 함수 모양 |
+| `pthread_create(&tid, NULL, fn, &arg)` | ⚠️ 생성 → 0 성공, 에러 번호 |
+| `pthread_join(tid, NULL)` | ⚠️ 끝날 때까지 기다림 |
+| `pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER` | mutex 초기화 |
+| `pthread_mutex_lock(&m)` / `unlock(&m)` | 획득 / 해제 |
+| `pthread_mutex_destroy(&m)` | 정리 (다 끝나고 잠기지 않았을 때) |
+| `strerror(rc)` | 에러 번호 → 문장 |
+| `gcc -pthread -fsanitize=thread` | data race 검사 |
+| `k*N/W`, `(k+1)*N/W` | ⚠️ 범위 나누기 (곱하고 나눔) |
